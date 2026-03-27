@@ -42,21 +42,30 @@ body {
 .logo span { color: #ff4757; }
 
 /* API Key */
+.api-key-section { margin-bottom: 12px; }
+
 .api-key-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .api-key-row input {
   flex: 1;
-  max-width: 400px;
+  min-width: 200px;
+  max-width: 320px;
   padding: 8px 12px;
   background: #16162a;
   border: 1px solid #333;
   border-radius: 6px;
   color: #ccc;
   font-size: 13px;
+}
+
+.api-key-row input.key-name {
+  max-width: 140px;
+  min-width: 100px;
 }
 
 .api-key-row button {
@@ -70,7 +79,50 @@ body {
 }
 
 .api-key-row button:hover { background: #444; }
+.api-key-row button.btn-delete { color: #ff4757; }
+.api-key-row button.btn-delete:hover { background: #3a1525; }
 .api-key-status { font-size: 12px; color: #4cd137; margin-left: 8px; line-height: 36px; }
+
+.key-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.key-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #16162a;
+  border: 1px solid #333;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.key-chip:hover { border-color: #555; }
+
+.key-chip.active {
+  border-color: #ff4757;
+  color: #fff;
+  background: #2a1530;
+}
+
+.key-chip .chip-name { font-weight: 600; }
+.key-chip .chip-key { color: #666; font-size: 11px; }
+
+.key-chip .chip-delete {
+  color: #555;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.key-chip .chip-delete:hover { color: #ff4757; }
 
 /* Search */
 .search-row {
@@ -358,10 +410,14 @@ body {
       <span>&#9654;</span> YouTube Outlier Finder
     </div>
 
-    <div class="api-key-row">
-      <input type="password" id="apiKey" placeholder="YouTube Data API v3 Key 입력">
-      <button onclick="saveApiKey()">저장</button>
-      <span class="api-key-status" id="keyStatus"></span>
+    <div class="api-key-section">
+      <div class="key-list" id="keyList"></div>
+      <div class="api-key-row">
+        <input type="text" class="key-name" id="keyName" placeholder="이름 (예: 개인)">
+        <input type="password" id="apiKey" placeholder="YouTube Data API v3 Key 입력">
+        <button onclick="addApiKey()">추가</button>
+        <span class="api-key-status" id="keyStatus"></span>
+      </div>
     </div>
 
     <div class="search-row">
@@ -436,25 +492,105 @@ const API_BASE = 'https://www.googleapis.com/youtube/v3';
 let allResults = [];
 let channelCache = {};
 
-// API Key
-function getApiKey() { return document.getElementById('apiKey').value.trim(); }
-
-function saveApiKey() {
-  const key = getApiKey();
-  if (!key) return;
-  localStorage.setItem('yt_api_key', key);
-  document.getElementById('keyStatus').textContent = '저장됨';
-  setTimeout(() => document.getElementById('keyStatus').textContent = '', 2000);
+// API Key Management
+function getKeys() {
+  return JSON.parse(localStorage.getItem('yt_api_keys') || '[]');
 }
 
-// Load saved key
-(function() {
-  const saved = localStorage.getItem('yt_api_key');
-  if (saved) {
-    document.getElementById('apiKey').value = saved;
-    document.getElementById('keyStatus').textContent = '불러옴';
-    setTimeout(() => document.getElementById('keyStatus').textContent = '', 1500);
+function saveKeys(keys) {
+  localStorage.setItem('yt_api_keys', JSON.stringify(keys));
+}
+
+function getActiveKeyId() {
+  return localStorage.getItem('yt_active_key') || '';
+}
+
+function setActiveKeyId(id) {
+  localStorage.setItem('yt_active_key', id);
+}
+
+function getApiKey() {
+  const keys = getKeys();
+  const activeId = getActiveKeyId();
+  const active = keys.find(k => k.id === activeId);
+  return active ? active.key : '';
+}
+
+function addApiKey() {
+  const nameInput = document.getElementById('keyName');
+  const keyInput = document.getElementById('apiKey');
+  const name = nameInput.value.trim() || ('Key ' + (getKeys().length + 1));
+  const key = keyInput.value.trim();
+  if (!key) return;
+
+  const keys = getKeys();
+  const id = Date.now().toString();
+  keys.push({ id, name, key });
+  saveKeys(keys);
+  setActiveKeyId(id);
+
+  nameInput.value = '';
+  keyInput.value = '';
+  renderKeyList();
+  showKeyStatus('추가됨');
+}
+
+function selectKey(id) {
+  setActiveKeyId(id);
+  renderKeyList();
+}
+
+function deleteKey(id, e) {
+  e.stopPropagation();
+  let keys = getKeys();
+  keys = keys.filter(k => k.id !== id);
+  saveKeys(keys);
+  if (getActiveKeyId() === id) {
+    setActiveKeyId(keys.length > 0 ? keys[0].id : '');
   }
+  renderKeyList();
+}
+
+function maskKey(key) {
+  if (key.length <= 8) return '****';
+  return key.slice(0, 4) + '...' + key.slice(-4);
+}
+
+function renderKeyList() {
+  const keys = getKeys();
+  const activeId = getActiveKeyId();
+  const container = document.getElementById('keyList');
+
+  if (keys.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = keys.map(k => `
+    <div class="key-chip ${k.id === activeId ? 'active' : ''}" onclick="selectKey('${k.id}')">
+      <span class="chip-name">${escHtml(k.name)}</span>
+      <span class="chip-key">${maskKey(k.key)}</span>
+      <span class="chip-delete" onclick="deleteKey('${k.id}', event)">&times;</span>
+    </div>
+  `).join('');
+}
+
+function showKeyStatus(msg) {
+  const el = document.getElementById('keyStatus');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', 2000);
+}
+
+// Migrate old single key
+(function() {
+  const oldKey = localStorage.getItem('yt_api_key');
+  if (oldKey && getKeys().length === 0) {
+    const id = Date.now().toString();
+    saveKeys([{ id, name: 'Default', key: oldKey }]);
+    setActiveKeyId(id);
+    localStorage.removeItem('yt_api_key');
+  }
+  renderKeyList();
 })();
 
 // Fetch helper
