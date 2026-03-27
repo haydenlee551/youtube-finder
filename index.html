@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Outlier Finder</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f0f0f;
+  color: #e1e1e1;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: #1a1a2e;
+  border-bottom: 1px solid #2a2a4a;
+  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo span { color: #ff4757; }
+
+/* API Key */
+.api-key-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.api-key-row input {
+  flex: 1;
+  max-width: 400px;
+  padding: 8px 12px;
+  background: #16162a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 13px;
+}
+
+.api-key-row button {
+  padding: 8px 16px;
+  background: #333;
+  border: none;
+  border-radius: 6px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.api-key-row button:hover { background: #444; }
+.api-key-status { font-size: 12px; color: #4cd137; margin-left: 8px; line-height: 36px; }
+
+/* Search */
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-row input {
+  flex: 1;
+  padding: 12px 16px;
+  background: #16162a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.search-row input:focus { outline: none; border-color: #ff4757; }
+
+.btn-search {
+  padding: 12px 28px;
+  background: #ff4757;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-search:hover { background: #ff6b7a; }
+.btn-search:disabled { background: #555; cursor: not-allowed; }
+
+/* Filters */
+.filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filters label {
+  font-size: 13px;
+  color: #888;
+}
+
+.filters select, .filters input[type="number"] {
+  padding: 6px 10px;
+  background: #16162a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 13px;
+}
+
+.filters select { min-width: 100px; }
+.filters input[type="number"] { width: 100px; }
+
+/* Sort bar */
+.sort-bar {
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.result-count { font-size: 14px; color: #888; }
+
+.sort-btns { display: flex; gap: 6px; }
+
+.sort-btns button {
+  padding: 6px 14px;
+  background: #1a1a2e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #888;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sort-btns button.active {
+  background: #ff4757;
+  border-color: #ff4757;
+  color: #fff;
+}
+
+/* Results */
+.results {
+  max-width: 1200px;
+  margin: 16px auto;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+/* Card */
+.card {
+  background: #1a1a2e;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #2a2a4a;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: #ff4757;
+}
+
+.card-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.outlier-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+
+.outlier-badge.hot { background: #ff4757; }
+.outlier-badge.warm { background: #ff9f43; }
+.outlier-badge.normal { background: #555; }
+
+.card-body { padding: 14px; }
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-title a {
+  color: #e1e1e1;
+  text-decoration: none;
+}
+
+.card-title a:hover { color: #fff; }
+
+.card-channel {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 10px;
+}
+
+.card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.stat {
+  background: #12122a;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stat-value.highlight { color: #ff4757; }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #888;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #333;
+  border-top-color: #ff4757;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty */
+.empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: #555;
+  font-size: 16px;
+  grid-column: 1 / -1;
+}
+
+/* Progress */
+.progress-bar {
+  max-width: 1200px;
+  margin: 12px auto 0;
+  padding: 0 20px;
+  display: none;
+}
+
+.progress-bar.show { display: block; }
+
+.progress-track {
+  height: 4px;
+  background: #222;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #ff4757;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #666;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Error */
+.error-msg {
+  max-width: 1200px;
+  margin: 16px auto;
+  padding: 12px 20px;
+  background: #2a1520;
+  border: 1px solid #ff4757;
+  border-radius: 8px;
+  color: #ff6b7a;
+  font-size: 14px;
+  display: none;
+}
+
+.error-msg.show { display: block; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .results { grid-template-columns: 1fr; }
+  .filters { flex-direction: column; gap: 8px; }
+  .search-row input { font-size: 14px; padding: 10px 12px; }
+  .btn-search { padding: 10px 20px; font-size: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span>&#9654;</span> YouTube Outlier Finder
+    </div>
+
+    <div class="api-key-row">
+      <input type="password" id="apiKey" placeholder="YouTube Data API v3 Key 입력">
+      <button onclick="saveApiKey()">저장</button>
+      <span class="api-key-status" id="keyStatus"></span>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="query" placeholder="검색할 주제를 입력하세요 (예: 캠핑 브이로그)" onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn-search" id="btnSearch" onclick="doSearch()">검색</button>
+    </div>
+
+    <div class="filters">
+      <label>기간</label>
+      <select id="period">
+        <option value="">전체</option>
+        <option value="7">최근 1주</option>
+        <option value="30" selected>최근 1개월</option>
+        <option value="90">최근 3개월</option>
+        <option value="180">최근 6개월</option>
+        <option value="365">최근 1년</option>
+      </select>
+
+      <label>최소 구독자</label>
+      <select id="minSubs">
+        <option value="0">제한 없음</option>
+        <option value="1000">1,000+</option>
+        <option value="5000">5,000+</option>
+        <option value="10000" selected>10,000+</option>
+        <option value="50000">50,000+</option>
+        <option value="100000">100,000+</option>
+      </select>
+
+      <label>최대 구독자</label>
+      <select id="maxSubs">
+        <option value="0">제한 없음</option>
+        <option value="10000">~10,000</option>
+        <option value="50000">~50,000</option>
+        <option value="100000">~100,000</option>
+        <option value="500000">~500,000</option>
+        <option value="1000000">~1,000,000</option>
+      </select>
+
+      <label>결과 수</label>
+      <select id="maxResults">
+        <option value="25">25개</option>
+        <option value="50" selected>50개</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="progress-bar" id="progressBar">
+  <div class="progress-track">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <div class="progress-text" id="progressText"></div>
+</div>
+
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="sort-bar" id="sortBar" style="display:none;">
+  <div class="result-count" id="resultCount"></div>
+  <div class="sort-btns">
+    <button class="active" onclick="sortBy('outlier', this)">아웃라이어순</button>
+    <button onclick="sortBy('views', this)">조회수순</button>
+    <button onclick="sortBy('date', this)">최신순</button>
+  </div>
+</div>
+
+<div class="results" id="results">
+  <div class="empty">검색어를 입력하고 아웃라이어 영상을 찾아보세요</div>
+</div>
+
+<script>
+const API_BASE = 'https://www.googleapis.com/youtube/v3';
+let allResults = [];
+let channelCache = {};
+
+// API Key
+function getApiKey() { return document.getElementById('apiKey').value.trim(); }
+
+function saveApiKey() {
+  const key = getApiKey();
+  if (!key) return;
+  localStorage.setItem('yt_api_key', key);
+  document.getElementById('keyStatus').textContent = '저장됨';
+  setTimeout(() => document.getElementById('keyStatus').textContent = '', 2000);
+}
+
+// Load saved key
+(function() {
+  const saved = localStorage.getItem('yt_api_key');
+  if (saved) {
+    document.getElementById('apiKey').value = saved;
+    document.getElementById('keyStatus').textContent = '불러옴';
+    setTimeout(() => document.getElementById('keyStatus').textContent = '', 1500);
+  }
+})();
+
+// Fetch helper
+async function ytApi(endpoint, params) {
+  const key = getApiKey();
+  if (!key) throw new Error('API Key를 입력해주세요.');
+  const url = new URL(`${API_BASE}/${endpoint}`);
+  params.key = key;
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') url.searchParams.set(k, v); });
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err?.error?.message || `API 오류 (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// Progress
+function showProgress(pct, text) {
+  const bar = document.getElementById('progressBar');
+  bar.classList.add('show');
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+function hideProgress() {
+  document.getElementById('progressBar').classList.remove('show');
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('errorMsg').classList.remove('show');
+}
+
+// Format number
+function fmt(n) {
+  if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';
+  if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+  if (n >= 1000) return (n / 1000).toFixed(1) + '천';
+  return n.toLocaleString();
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Main search
+async function doSearch() {
+  const query = document.getElementById('query').value.trim();
+  if (!query) return;
+  if (!getApiKey()) { showError('API Key를 입력해주세요.'); return; }
+
+  hideError();
+  allResults = [];
+  channelCache = {};
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('sortBar').style.display = 'none';
+  document.getElementById('btnSearch').disabled = true;
+
+  try {
+    const maxResults = parseInt(document.getElementById('maxResults').value);
+    const period = document.getElementById('period').value;
+
+    let publishedAfter;
+    if (period) {
+      const d = new Date();
+      d.setDate(d.getDate() - parseInt(period));
+      publishedAfter = d.toISOString();
+    }
+
+    // Step 1: Search
+    showProgress(10, '영상 검색 중...');
+    let videoIds = [];
+    let nextPageToken = '';
+
+    while (videoIds.length < maxResults) {
+      const remaining = maxResults - videoIds.length;
+      const params = {
+        part: 'snippet',
+        q: query,
+        type: 'video',
+        order: 'relevance',
+        maxResults: Math.min(remaining, 50),
+        publishedAfter: publishedAfter,
+        pageToken: nextPageToken || undefined
+      };
+      const searchData = await ytApi('search', params);
+      const ids = searchData.items.map(i => i.id.videoId).filter(Boolean);
+      videoIds.push(...ids);
+      nextPageToken = searchData.nextPageToken;
+      if (!nextPageToken) break;
+    }
+
+    videoIds = videoIds.slice(0, maxResults);
+
+    if (videoIds.length === 0) {
+      document.getElementById('results').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+      hideProgress();
+      document.getElementById('btnSearch').disabled = false;
+      return;
+    }
+
+    // Step 2: Get video details (batch 50)
+    showProgress(30, '영상 정보 조회 중...');
+    let videos = [];
+    for (let i = 0; i < videoIds.length; i += 50) {
+      const batch = videoIds.slice(i, i + 50);
+      const data = await ytApi('videos', {
+        part: 'snippet,statistics',
+        id: batch.join(',')
+      });
+      videos.push(...data.items);
+    }
+
+    // Step 3: Get channel details
+    const channelIds = [...new Set(videos.map(v => v.snippet.channelId))];
+    showProgress(50, `채널 정보 조회 중 (${channelIds.length}개)...`);
+
+    for (let i = 0; i < channelIds.length; i += 50) {
+      const batch = channelIds.slice(i, i + 50);
+      const data = await ytApi('channels', {
+        part: 'statistics',
+        id: batch.join(',')
+      });
+      data.items.forEach(ch => {
+        channelCache[ch.id] = {
+          subscribers: parseInt(ch.statistics.subscriberCount) || 0,
+          totalViews: parseInt(ch.statistics.viewCount) || 0,
+          videoCount: parseInt(ch.statistics.videoCount) || 1
+        };
+      });
+      showProgress(50 + (i / channelIds.length) * 40, `채널 정보 조회 중...`);
+    }
+
+    // Step 4: Calculate outlier scores
+    showProgress(90, '아웃라이어 점수 계산 중...');
+    const minSubs = parseInt(document.getElementById('minSubs').value);
+    const maxSubs = parseInt(document.getElementById('maxSubs').value);
+
+    allResults = videos.map(v => {
+      const ch = channelCache[v.snippet.channelId] || { subscribers: 0, totalViews: 0, videoCount: 1 };
+      const views = parseInt(v.statistics.viewCount) || 0;
+      const channelAvg = ch.videoCount > 0 ? ch.totalViews / ch.videoCount : 1;
+      const outlierScore = channelAvg > 0 ? views / channelAvg : 0;
+
+      return {
+        videoId: v.id,
+        title: v.snippet.title,
+        channelTitle: v.snippet.channelTitle,
+        channelId: v.snippet.channelId,
+        thumbnail: v.snippet.thumbnails.high?.url || v.snippet.thumbnails.medium?.url || v.snippet.thumbnails.default?.url,
+        publishedAt: v.snippet.publishedAt,
+        views,
+        likes: parseInt(v.statistics.likeCount) || 0,
+        comments: parseInt(v.statistics.commentCount) || 0,
+        subscribers: ch.subscribers,
+        channelAvg: Math.round(channelAvg),
+        outlierScore: Math.round(outlierScore * 100) / 100
+      };
+    }).filter(v => {
+      if (minSubs > 0 && v.subscribers < minSubs) return false;
+      if (maxSubs > 0 && v.subscribers > maxSubs) return false;
+      return true;
+    });
+
+    // Sort by outlier score
+    allResults.sort((a, b) => b.outlierScore - a.outlierScore);
+
+    showProgress(100, '완료!');
+    setTimeout(hideProgress, 500);
+    renderResults();
+
+  } catch (e) {
+    hideProgress();
+    showError(e.message);
+  }
+
+  document.getElementById('btnSearch').disabled = false;
+}
+
+function sortBy(type, btn) {
+  document.querySelectorAll('.sort-btns button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (type === 'outlier') allResults.sort((a, b) => b.outlierScore - a.outlierScore);
+  else if (type === 'views') allResults.sort((a, b) => b.views - a.views);
+  else if (type === 'date') allResults.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+  renderResults();
+}
+
+function renderResults() {
+  const container = document.getElementById('results');
+  document.getElementById('sortBar').style.display = 'flex';
+  document.getElementById('resultCount').textContent = `${allResults.length}개 영상`;
+
+  if (allResults.length === 0) {
+    container.innerHTML = '<div class="empty">필터 조건에 맞는 영상이 없습니다.</div>';
+    return;
+  }
+
+  container.innerHTML = allResults.map(v => {
+    const badgeClass = v.outlierScore >= 5 ? 'hot' : v.outlierScore >= 2 ? 'warm' : 'normal';
+    const scoreText = v.outlierScore >= 100 ? fmt(Math.round(v.outlierScore)) + 'x' : v.outlierScore.toFixed(1) + 'x';
+
+    return `
+      <div class="card">
+        <div class="card-thumb" onclick="window.open('https://www.youtube.com/watch?v=${v.videoId}','_blank')">
+          <img src="${v.thumbnail}" alt="" loading="lazy">
+          <div class="outlier-badge ${badgeClass}">${scoreText}</div>
+        </div>
+        <div class="card-body">
+          <div class="card-title">
+            <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank">${escHtml(v.title)}</a>
+          </div>
+          <div class="card-channel">${escHtml(v.channelTitle)} · 구독자 ${fmt(v.subscribers)}</div>
+          <div class="card-stats">
+            <div class="stat">
+              <div class="stat-label">조회수</div>
+              <div class="stat-value">${fmt(v.views)}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">채널 평균</div>
+              <div class="stat-value">${fmt(v.channelAvg)}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">아웃라이어</div>
+              <div class="stat-value highlight">${scoreText}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">업로드</div>
+              <div class="stat-value">${fmtDate(v.publishedAt)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>
