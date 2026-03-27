@@ -426,6 +426,14 @@ body {
     </div>
 
     <div class="filters">
+      <label>영상 길이</label>
+      <select id="duration">
+        <option value="">전체</option>
+        <option value="short">숏폼 (4분 이하)</option>
+        <option value="medium">미드폼 (4~20분)</option>
+        <option value="long">롱폼 (20분 이상)</option>
+      </select>
+
       <label>기간</label>
       <select id="period">
         <option value="">전체</option>
@@ -675,6 +683,7 @@ async function doSearch() {
 
     while (videoIds.length < maxResults) {
       const remaining = maxResults - videoIds.length;
+      const duration = document.getElementById('duration').value;
       const params = {
         part: 'snippet',
         q: query,
@@ -682,6 +691,7 @@ async function doSearch() {
         order: 'relevance',
         maxResults: Math.min(remaining, 50),
         publishedAfter: publishedAfter,
+        videoDuration: duration || undefined,
         pageToken: nextPageToken || undefined
       };
       const searchData = await ytApi('search', params);
